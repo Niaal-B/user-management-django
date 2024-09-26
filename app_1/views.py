@@ -1,63 +1,197 @@
-from django.shortcuts import render,redirect,HttpResponse
+from django.shortcuts import render, redirect,get_object_or_404
 from django.contrib.auth.models import User
-from django.contrib.auth import authenticate,login,logout
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.views.decorators.cache import never_cache
-# Create your views here.
+from django.db import IntegrityError
+from django.core.validators import validate_email
+from django.core.exceptions import ValidationError
+
+
+# Homepage view, requires login
 @never_cache
 @login_required(login_url='login')
 def Homepage(request):
-    uname=request.user.email
-    return render(request,'home.html',{
-        "check":uname
-    })
-    
+    return render(request, 'home.html')
 
-
+# Signup page
 @never_cache
 def Signupage(request):
     if request.user.is_authenticated:
-        return redirect(Homepage)
-    if request.method== 'POST':
-        uname=request.POST.get('username')
-        email=request.POST.get('email')
-        pass1=request.POST.get('password1')
-        pass2=request.POST.get('password2')
-        if pass1!=pass2:
-            return render(request,'signup.html',{
-                'error':"Password are Not same"
+        return redirect('home')
+    
+    if request.method == 'POST':
+        uname = request.POST.get('username')
+        email = request.POST.get('email')
+        pass1 = request.POST.get('password1')
+        pass2 = request.POST.get('password2')
+        
+        # Validate that all fields are filled
+        if not uname or not email or not pass1 or not pass2:
+            return render(request, 'signup.html', {
+                'error': "All fields are required",
+                'username': uname,
+                'email': email
             })
-        else:
-            my_user=User.objects.create_user(uname,email,pass1)
-            
+        
+        # Username validation
+        if len(uname) < 6:
+            return render(request, 'signup.html', {
+                'error': "Username must be at least 6 characters long",
+                'username': uname,
+                'email': email
+            })
+        if not uname.isalnum():
+            return render(request, 'signup.html', {
+                'error': "Username must be alphanumeric",
+                'username': uname,
+                'email': email
+            })
+
+        # Email validation
+        try:
+            validate_email(email)
+        except ValidationError:
+            return render(request, 'signup.html', {
+                'error': "Invalid email format",
+                'username': uname,
+                'email': email
+            })
+        
+        # Password validation
+        if len(pass1) < 8:
+            return render(request, 'signup.html', {
+                'error': "Password must be at least 8 characters long",
+                'username': uname,
+                'email': email
+            })
+        if pass1 != pass2:
+            return render(request, 'signup.html', {
+                'error': "Passwords do not match",
+                'username': uname,
+                'email': email
+            })
+        
+        if User.objects.filter(username=uname).exists():
+            return render(request, 'signup.html', {
+                'error': "Username already exists",
+                'username': uname,
+                'email': email
+            })
+        
+        try:
+            my_user = User.objects.create_user(uname, email, pass1)
             my_user.save()
-
             return redirect('login')
-    return render(request,'signup.html')
-
-
-
+        except IntegrityError:
+            return render(request, 'signup.html', {
+                'error': "Error during user creation",
+                'username': uname,
+                'email': email
+            })
+    
+    return render(request, 'signup.html')
+# Login page
 @never_cache
 def Loginpage(request):
     if request.user.is_authenticated:
-        return redirect(Homepage)
-    if request.method=='POST':
-        username=request.POST.get('username')
-        pass1=request.POST.get('pass')
-        user=authenticate(request,username=username,password=pass1)
+        return redirect('home')
+    
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        pass1 = request.POST.get('pass')
+        user = authenticate(request, username=username, password=pass1)
+        
         if user is not None:
-            login(request,user)
-            return redirect('home')
+            login(request, user)
+            if user.is_staff:
+                return redirect('admin_panel')
+            else:
+                return redirect('home')
         else:
-            return render(request,'login.html',{
-                'error':"Invalid Username Or Password"
-            })
+            return render(request, 'login.html', {'error': "Invalid Username or Password"})
+    
+    return render(request, 'login.html')
 
-    return render(request,'login.html')
-
+# Logout function
 @never_cache
-@login_required(login_url='signup')
+@login_required(login_url='login')
 def Logout(request):
     logout(request)
-    print("user is logout")
     return redirect('login')
+
+# Check if user is admin
+def is_admin(user):
+    return user.is_staff
+
+# Admin panel
+@user_passes_test(is_admin)
+def admin_panel(request):
+    query = request.GET.get('q')
+    if query:
+        users = User.objects.filter(username__icontains=query)
+    else:
+        users = User.objects.all()
+    return render(request, 'admin_panel.html', {'users': users, 'query': query})
+
+# Admin user creation
+@user_passes_test(is_admin)
+def create_user(request):
+    if request.method == 'POST':
+        uname = request.POST.get('username')
+        email = request.POST.get('email')
+        pass1 = request.POST.get('password1')
+        pass2 = request.POST.get('password2')
+        
+        # Validate that all fields are filled
+        if not uname or not email or not pass1 or not pass2:
+            return render(request, 'create_user.html', {'error': "All fields are required"})
+        
+        # Username validation
+        if len(uname) < 6:
+            return render(request, 'create_user.html', {'error': "Username must be at least 6 characters long"})
+        if not uname.isalnum():
+            return render(request, 'create_user.html', {'error': "Username must be alphanumeric"})
+
+        # Email validation
+        try:
+            validate_email(email)
+        except ValidationError:
+            return render(request, 'create_user.html', {'error': "Invalid email format"})
+        
+        # Password validation
+        if len(pass1) < 8:
+            return render(request, 'create_user.html', {'error': "Password must be at least 8 characters long"})
+        if pass1 != pass2:
+            return render(request, 'create_user.html', {'error': "Passwords do not match"})
+        
+        if User.objects.filter(username=uname).exists():
+            return render(request, 'create_user.html', {'error': "Username already exists"})
+        
+        try:
+            my_user = User.objects.create_user(uname, email, pass1)
+            my_user.save()
+            return redirect('admin_panel')
+        except IntegrityError:
+            return render(request, 'create_user.html', {'error': "Error during user creation"})
+    
+    return render(request, 'create_user.html')
+#edit 
+
+@user_passes_test(is_admin)
+def edit_user(request,user_id):
+    user = get_object_or_404(User, id=user_id)
+    if request.method=='POST':
+        user.username = request.POST['username']
+        user.email = request.POST['email']
+        user.save()
+        return redirect('admin_panel')
+    return render(request, 'edit.html', {'user': user})
+
+
+
+@user_passes_test(is_admin)
+def delete_user(request, user_id):
+    user = get_object_or_404(User, id=user_id)
+    user.delete()
+    return redirect('admin_panel')
