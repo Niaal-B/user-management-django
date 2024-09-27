@@ -125,6 +125,7 @@ def is_admin(user):
     return user.is_staff
 
 # Admin panel
+@never_cache
 @user_passes_test(is_admin)
 def admin_panel(request):
     query = request.GET.get('q')
@@ -132,9 +133,17 @@ def admin_panel(request):
         users = User.objects.filter(username__icontains=query)
     else:
         users = User.objects.all()
-    return render(request, 'admin_panel.html', {'users': users, 'query': query})
+    no_users_found = not users.exists()
+    
+    return render(request, 'admin_panel.html', {
+        'users': users,
+        'query': query,
+        'no_users_found': no_users_found
+    })
+
 
 # Admin user creation
+@never_cache
 @user_passes_test(is_admin)
 def create_user(request):
     if request.method == 'POST':
@@ -177,7 +186,7 @@ def create_user(request):
     
     return render(request, 'create_user.html')
 #edit 
-
+@never_cache
 @user_passes_test(is_admin)
 def edit_user(request,user_id):
     user = get_object_or_404(User, id=user_id)
@@ -189,7 +198,7 @@ def edit_user(request,user_id):
     return render(request, 'edit.html', {'user': user})
 
 
-
+@never_cache
 @user_passes_test(is_admin)
 def delete_user(request, user_id):
     user = get_object_or_404(User, id=user_id)

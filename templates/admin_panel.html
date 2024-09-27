@@ -85,6 +85,10 @@
             border-color: #03A9F4;
             background: #03A9F4;
         }
+        .test{
+           border-radius: 5px !important; 
+           margin-left: 10px  !important;
+        }
     </style>
 </head>
 <body>
@@ -93,21 +97,22 @@
     <div class="table-title">
         <h2>Manage Users</h2>
         <div class="btn-group">
-            <a class="btn btn-primary" data-toggle="tooltip" title="Add User" href="{% url 'create-user' %}">Add User</a>
-
-                <a href="{% url 'logout' %}" class="btn btn-danger">Logout</a>
+            <a class="btn btn-primary test" data-toggle="tooltip" title="Add User" href="{% url 'create-user' %}">Add User</a>
+            <a href="{% url 'logout' %}" class="btn btn-danger test">Logout</a>
         </div>
-        
     </div>
+ 
     <table class="table table-striped table-hover">
+        {% if no_users_found %}
+        <p>No users found.</p>
+        {% endif %}
         <thead>
             <div class="row"> 
                 <form method="GET" action="{% url 'admin_panel' %}">
-                <input type="text" name="q" value="{{ query }}" placeholder="Search users..." class="form-control col-2 " />
-                <button type="submit" class=" btn-primary mt-2 offset-2">Search</button>
-            </form>
-        </div>
-           
+                <input type="text" name="q" value="{{ query }}" placeholder="Search users..." class="form-control col-2 offset-9" />
+                <button type="submit" class="btn btn-primary btn-sm">Search</button>
+                </form>
+            </div>
             <tr>
                 <th>
                     <div class="custom-checkbox">
@@ -132,40 +137,66 @@
                 <td>{{user.email}}</td>
                 <td>
                     <a href="{% url 'edit_user' user.id %}" class="edit" data-toggle="tooltip" title="Edit">Edit</a>
-                 
                 </td>
                 <td>
-
-                    <a href="{% url 'delete_user' user.id %}" class="delete" data-toggle="tooltip" title="Delete">Delete</a>
+                    <a href="{% url 'delete_user' user.id %}" class="delete" data-toggle="tooltip" title="Delete" onclick="confirmDelete(event, this)">Delete</a>
                 </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
-   
 </div>
 
 <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.3/dist/umd/popper.min.js"></script>
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 $(document).ready(function(){
-	$('[data-toggle="tooltip"]').tooltip();
-	
-	var checkbox = $('table tbody input[type="checkbox"]');
-	
-	$("#selectAll").click(function(){
-		checkbox.prop("checked", this.checked);
-	});
-	
-	checkbox.click(function(){
-		if (!this.checked) {
-			$("#selectAll").prop("checked", false);
-		} else if (checkbox.length === checkbox.filter(":checked").length) {
-			$("#selectAll").prop("checked", true);
-		}
-	});
+    $('[data-toggle="tooltip"]').tooltip();
+    
+    var checkbox = $('table tbody input[type="checkbox"]');
+    
+    $("#selectAll").click(function(){
+        checkbox.prop("checked", this.checked);
+    });
+    
+    checkbox.click(function(){
+        if (!this.checked) {
+            $("#selectAll").prop("checked", false);
+        } else if (checkbox.length === checkbox.filter(":checked").length) {
+            $("#selectAll").prop("checked", true);
+        }
+    });
 });
+
+function confirmDelete(event, el) {
+    event.preventDefault();
+    
+    Swal.fire({
+        title: 'Are you sure?',
+        text: "This action cannot be undone!",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Yes, delete it!',
+        cancelButtonText: 'Cancel'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            Swal.fire({
+                title: "Deleted!",
+                text: "Your file has been deleted.",
+                icon: "success",
+                timer: 2000,  // Duration for which the alert will stay visible (in milliseconds)
+                showConfirmButton: false,
+                willClose: () => {
+                    window.location.href = el.getAttribute('href'); // Redirect after alert is closed
+                }
+            });
+        }
+    });
+}
 </script>
 </body>
 </html>
