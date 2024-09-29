@@ -128,11 +128,11 @@ def is_admin(user):
 @never_cache
 @user_passes_test(is_admin)
 def admin_panel(request):
-    query = request.GET.get('q')
+    query = request.GET.get('q','')
     if query:
-        users = User.objects.filter(username__icontains=query)
+        users = User.objects.filter(username__icontains=query,is_superuser=False)
     else:
-        users = User.objects.all()
+        users = User.objects.filter(is_superuser=False)
     no_users_found = not users.exists()
     
     return render(request, 'admin_panel.html', {
@@ -146,6 +146,7 @@ def admin_panel(request):
 @never_cache
 @user_passes_test(is_admin)
 def create_user(request):
+    error=''
     if request.method == 'POST':
         uname = request.POST.get('username')
         email = request.POST.get('email')
@@ -154,37 +155,32 @@ def create_user(request):
         
         # Validate that all fields are filled
         if not uname or not email or not pass1 or not pass2:
-            return render(request, 'create_user.html', {'error': "All fields are required"})
+            error = 'All fields are required'
         
         # Username validation
-        if len(uname) < 6:
-            return render(request, 'create_user.html', {'error': "Username must be at least 6 characters long"})
-        if not uname.isalnum():
-            return render(request, 'create_user.html', {'error': "Username must be alphanumeric"})
+        elif len(uname) < 6:
+            error = "Username must be at least 6 characters long"
+        elif not uname.isalnum():
+            error = "Username must be alphanumeric"
 
-        # Email validation
-        try:
-            validate_email(email)
-        except ValidationError:
-            return render(request, 'create_user.html', {'error': "Invalid email format"})
         
         # Password validation
-        if len(pass1) < 8:
-            return render(request, 'create_user.html', {'error': "Password must be at least 8 characters long"})
-        if pass1 != pass2:
-            return render(request, 'create_user.html', {'error': "Passwords do not match"})
+        elif len(pass1) < 8:
+            error = "Password must be at least 8 characters long"
+        elif pass1 != pass2:
+            error = "Passwords do not match"
         
-        if User.objects.filter(username=uname).exists():
-            return render(request, 'create_user.html', {'error': "Username already exists"})
-        
-        try:
+        elif User.objects.filter(username=uname).exists():
+            error = "Username already exists"
+        elif User.objects.filter(email=email).exists():
+            error = "Email already exists"
+        else:
             my_user = User.objects.create_user(uname, email, pass1)
             my_user.save()
             return redirect('admin_panel')
-        except IntegrityError:
-            return render(request, 'create_user.html', {'error': "Error during user creation"})
-    
-    return render(request, 'create_user.html')
+        
+    return render(request, 'create_user.html', {'e': error})
+
 #edit 
 @never_cache
 @user_passes_test(is_admin)
